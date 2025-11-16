@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Kafka Activity Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background: #333;
+            color: white;
+            padding: 15px 25px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        h2 {
+            margin-top: 30px;
+        }
+
+        button, select, input[type="text"], input[type="range"] {
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background: #0077ff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #005fcc;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .toggle-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Website Activity Simulator</h1>
+</header>
+
+<div class="container">
+
+    <h2>Button Clicks</h2>
+    <button>Click Me</button>
+    <button>Click</button>
+    <button>Don't Click?</button>
+
+    <h2>Slider Input</h2>
+    <label>
+        <input type="range" min="0" max="100" value="50">
+    </label>
+
+    <h2>Dropdown Selection</h2>
+    <label>
+        <select>
+            <option value="">-- Favourite Day of the Week --</option>
+            <option value="sports">Sunday</option>
+            <option value="tech">Monday</option>
+            <option value="fashion">Tuesday</option>
+            <option value="games">Wednesday</option>
+            <option value="games">Thursday</option>
+            <option value="games">Friday</option>
+            <option value="games">Saturday</option>
+        </select>
+    </label>
+
+    <h2>Text Input</h2>
+    <label>
+        <input type="text" placeholder="Type something...">
+    </label>
+
+    <h2>Toggle Switch</h2>
+    <div class="toggle-wrapper">
+        <input type="checkbox" id="toggle">
+        <label for="toggle">Enable Me</label>
+    </div>
+
+</div>
+
+</body>
+</html>
