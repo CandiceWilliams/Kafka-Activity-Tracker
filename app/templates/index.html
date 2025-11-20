@@ -88,13 +88,13 @@
     <label>
         <select>
             <option value="">-- Favourite Day of the Week --</option>
-            <option value="sports">Sunday</option>
-            <option value="tech">Monday</option>
-            <option value="fashion">Tuesday</option>
-            <option value="games">Wednesday</option>
-            <option value="games">Thursday</option>
-            <option value="games">Friday</option>
-            <option value="games">Saturday</option>
+            <option value="Sunday">Sunday</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
         </select>
     </label>
 
@@ -111,5 +111,56 @@
 
 </div>
 
+<script>
+    function sendEvent(eventName, details = {}) {
+        fetch("/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                event: eventName,
+                details: details,
+                timestamp: Date.now()
+            })
+        });
+    }
+
+    // Logs an event every time someone opens website
+    window.addEventListener("load", () => {
+        sendEvent("page_load");
+    });
+
+    // Logs an event every time a button is clicked
+    document.addEventListener("click", (e) => {
+        if (e.target.tagName === "BUTTON") {
+            sendEvent("button_click", {
+                text: e.target.innerText
+            });
+        }
+    });
+
+    // Logs an event every time a slider is moved
+    document.querySelector('input[type="range"]').addEventListener("input", (e) => {
+        sendEvent("slider_input", {
+            value: e.target.value
+        });
+    });
+
+    // Logs an event every time dropdown selection is changed
+    document.querySelector("select").addEventListener("change", (e) => {
+        sendEvent("dropdown_selection", {
+            value: e.target.value
+        });
+    });
+
+    // Logs an event every time text input is changed
+    document.querySelector('input[type="text"]').addEventListener("input", (e) => {
+        sendEvent("text_input", { value: e.target.value });
+    });
+
+    // Logs an event every time toggle switch is toggled
+    document.querySelector('#toggle').addEventListener("change", (e) => {
+        sendEvent("toggle_switch", { checked: e.target.checked });
+    });
+</script>
 </body>
 </html>
