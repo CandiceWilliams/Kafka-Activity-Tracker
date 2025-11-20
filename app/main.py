@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from api.kafka_producer import create_producer
+from app.api.kafka_producer import create_producer
 
 app = FastAPI()
 
