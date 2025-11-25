@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Activity Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Real-Time Activity Dashboard</h1>
+
+<p>This page updates automatically every second:</p>
+
+<pre id="output">Loading activities...</pre>
+
+<script>
+    async function updateDashboard() {
+        try {
+            const req = await fetch("/activities");
+            const data = await req.json();
+            document.getElementById("output").textContent =
+                JSON.stringify(data, null, 2);
+        } catch (err) {
+            document.getElementById("output").textContent =
+                "Error fetching activities";
+        }
+    }
+    setInterval(updateDashboard, 1000);
+    updateDashboard();
+</script>
+
+</body>
+</html>
