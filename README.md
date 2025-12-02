@@ -1,0 +1,3 @@
+# Kafka Activity Tracker
+
+Apache Kafka is an open-source platform designed for handling event processing and real-time data streams. It serves as a robust and scalable solution for ingesting, storing, and processing large volumes of data in real time. This project aims to provide a comprehensive understanding of Kafka, focusing on its Application Programming Interface (API) and its specialized language for stream processing. By exploring Kafka's API, the project seeks to delve into the intricacies of how Kafka manages real-time data feeds, message queues, and distributed data storage. Additionally, the project will investigate Kafka's stream processing language, examining how it enables complex data manipulations and analytics on real-time streams.
