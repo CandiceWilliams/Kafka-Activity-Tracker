@@ -41,6 +41,10 @@ logs/
 # Docker
 docker-compose.override.yml
 
-# Project specific
+# Database
 *.db
 *.sqlite3
+
+# Temporary files
+*.tmp
+temp/

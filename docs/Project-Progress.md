@@ -1,8 +1,17 @@
-# Project Progress and Tasks
+# :bar_chart: Project Progress and Tasks
 
-## Table of Contents
+## :label: Table of Contents
 
-## Evaluation Criteria (from rubric):
+### Emoji Labels
+
+- :red_circle: URGENT
+- :yellow_circle: IMPORTANT
+- :orange_circle: IN PROGRESS
+- :green_circle: COMPLETED
+
+---
+
+## :heavy_check_mark: Evaluation Criteria (from rubric):
 
 - Understanding of Kafka's background and significance (3 pts)
 - Clear goals and objectives (3 pts)
@@ -12,7 +21,9 @@
 - Professional writing and formatting (3 pts)
   **Total: 18 points**
 
-## ⚠️ To Do List:
+---
+
+## :pencil: General To Do List:
 
 **Need to implement:**
 
@@ -45,6 +56,59 @@
 - [ ] Latency test (end-to-end timing)
 - [ ] Load test (find bottlenecks)
 - [ ] Document all results with graphs
+
+---
+
+## File specific To-dos
+
+### `docker-compose.yml`
+
+**Why:** We MUST showcase fault tolerance testing, which requires multiple brokers. With 1 broker, you can't test failover.
+
+- [ ] NEEDS 3 brokers with replication
+
+### Producer `kafka_producer.py`
+
+**Why:** Current producer does not showcase Kafka capabilities. Need to show topic routing, partitioning strategy, and error resilience.
+
+- [ ] Route events to appropriate topics based on type
+- [ ] Add comprehensive error handling
+- [ ] Track send metrics
+- [ ] Use message keys for ordering
+
+### Event handling
+
+**Why:** Demonstrates Kafka's data organization, allows independent scaling
+
+- [ ] Seperate topics by event type
+
+### Consumer `kafka_consumer.py`
+
+**Why:** Need to demonstrate consumer groups, parallel processing, and proper resource management.
+
+- [ ] Add multiple consumer groups
+- [ ] Add base consumer class for reusuability
+- [ ] Implement graceful shutdown handling
+- [ ] Implement better error handling
+
+### Activities `activities.py`
+
+**Why:** Current approach loses data on restart. Need to show understanding of stateful processing.
+
+- [ ] Implement proper state management
+
+### Main `main.py`
+
+**Why:** Current code works but doesn't follow best practices. Improvements show professionalism (I wanna add this to my portfolio y'all).
+
+- [ ] Separate endpoints per event type
+- [ ] Use Pydantic validation
+- [ ] Add WebSocket for real-time updates
+- [ ] Add better lifecycle management
+
+### Templates `index.html` and 'dashboard.html`
+
+- [ ] Add tailwind CSS styling to make it more cunty
 
 ## Project Goals
 

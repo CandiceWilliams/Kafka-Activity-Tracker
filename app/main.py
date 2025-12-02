@@ -1,52 +1,181 @@
+"""
+FastAPI application with improved lifecycle management.
+"""
+
 import threading
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 
-from app.api.kafka_producer import create_producer
-from app.api.kafka_consumer import create_consumer, process_event
-from app.api import activities as a
+from app.config import settings
+from app.kafka.producer import get_producer
+from app.kafka.consumer import create_analytics_consumer, create_dashboard_consumer
+from app.models.events import (
+    PageLoadEvent,
+    ButtonClickEvent,
+    SliderInputEvent,
+    DropdownSelectionEvent,
+    TextInputEvent,
+    ToggleSwitchEvent,
+)
+from app.services.analytics_service import get_analytics_state
+from app.api.websocket import ConnectionManager
+
+# Setup logging
+logging.basicConfig(
+    level=settings.LOG_LEVEL,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# WebSocket connection manager
+manager = ConnectionManager()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    def run_consumer():
-        consumer = create_consumer()
-        print("Kafka Consumer connected")
-        for msg in consumer:
-            process_event(msg.value)
-    thread = threading.Thread(target=run_consumer, daemon=True)
-    thread.start()
-    yield
-app = FastAPI(lifespan=lifespan)
+    """Application lifecycle management."""
+    # Startup
+    logger.info("Starting application...")
 
+    # Start consumers in background threads
+    analytics_consumer = create_analytics_consumer()
+    dashboard_consumer = create_dashboard_consumer()
+
+    analytics_thread = threading.Thread(
+        target=analytics_consumer.start, daemon=True, name="analytics-consumer"
+    )
+    dashboard_thread = threading.Thread(
+        target=dashboard_consumer.start, daemon=True, name="dashboard-consumer"
+    )
+
+    analytics_thread.start()
+    dashboard_thread.start()
+    logger.info("Consumers started")
+
+    # Initialize producer
+    producer = get_producer()
+    logger.info("Producer initialized")
+
+    yield  # Application runs
+
+    # Shutdown
+    logger.info("Shutting down application...")
+    analytics_consumer.close()
+    dashboard_consumer.close()
+    producer.flush()
+    producer.close()
+    logger.info("Application shutdown complete")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="Kafka Activity Tracker",
+    description="Real-time activity tracking using Apache Kafka",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# Setup templates
 templates = Jinja2Templates(directory="app/templates")
 
-producer = create_producer()
 
 @app.get("/")
 def home(request: Request):
+    """Render main activity tracking page."""
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 @app.post("/event")
 async def receive_event(request: Request):
-    data = await request.json()
-    producer.send('events', value=data)
-    return {"status": "Event received"}
+    """
+    Generic event endpoint for all event types.
+    Routes to appropriate topic based on event type.
+    """
+    try:
+        data = await request.json()
+        event_type = data.get("event")
 
-@app.get("/activities")
+        producer = get_producer()
+
+        # Route based on event type
+        if event_type == "page_load":
+            event = PageLoadEvent(
+                event_type="page_load",
+                url=data.get("url", "/"),
+                session_id=data.get("session_id"),
+            )
+        elif event_type == "button_click":
+            event = ButtonClickEvent(
+                event_type="button_click",
+                button_text=data.get("details", {}).get("text", "Unknown"),
+                session_id=data.get("session_id"),
+            )
+        elif event_type == "slider_input":
+            event = SliderInputEvent(
+                event_type="slider_input",
+                value=int(data.get("details", {}).get("value", 50)),
+                session_id=data.get("session_id"),
+            )
+        elif event_type == "dropdown_selection":
+            event = DropdownSelectionEvent(
+                event_type="dropdown_selection",
+                selected_value=data.get("details", {}).get("value", ""),
+                session_id=data.get("session_id"),
+            )
+        elif event_type == "text_input":
+            event = TextInputEvent(
+                event_type="text_input",
+                input_value=data.get("details", {}).get("value", ""),
+                session_id=data.get("session_id"),
+            )
+        elif event_type == "toggle_switch":
+            event = ToggleSwitchEvent(
+                event_type="toggle_switch",
+                is_enabled=data.get("details", {}).get("checked", False),
+                session_id=data.get("session_id"),
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "status": "error",
+                    "message": f"Unknown event type: {event_type}",
+                },
+            )
+
+        success = producer.send_event(event)
+
+        if success:
+            return {"status": "success", "event_type": event_type}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": "Failed to send event"},
+            )
+    except Exception as e:
+        logger.error(f"Error processing event: {e}")
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
+
+
+@app.get("/analytics")
 def get_analytics():
-    return {
-        "page_loads": a.page_loads,
-        "button_clicks": dict(a.button_clicks),
-        "slider_inputs": a.slider_inputs,
-        "dropdown_selections": dict(a.dropdown_selections),
-        "text_input_updates": a.text_input_updates,
-        "toggle_switch_counts": a.toggle_switch_counts,
-        "events_per_type": dict(a.events_per_type),
-        "events_per_second": dict(a.events_per_second),
-    }
+    """Get current analytics state."""
+    return get_analytics_state()
+
 
 @app.get("/dashboard")
-def activities_dashboard(request: Request):
+def dashboard(request: Request):
+    """Render analytics dashboard."""
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy"}
