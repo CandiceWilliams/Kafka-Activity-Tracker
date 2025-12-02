@@ -104,37 +104,31 @@ async def receive_event(request: Request):
         # Route based on event type
         if event_type == "page_load":
             event = PageLoadEvent(
-                event_type="page_load",
                 url=data.get("url", "/"),
                 session_id=data.get("session_id"),
             )
         elif event_type == "button_click":
             event = ButtonClickEvent(
-                event_type="button_click",
                 button_text=data.get("details", {}).get("text", "Unknown"),
                 session_id=data.get("session_id"),
             )
         elif event_type == "slider_input":
             event = SliderInputEvent(
-                event_type="slider_input",
                 value=int(data.get("details", {}).get("value", 50)),
                 session_id=data.get("session_id"),
             )
         elif event_type == "dropdown_selection":
             event = DropdownSelectionEvent(
-                event_type="dropdown_selection",
                 selected_value=data.get("details", {}).get("value", ""),
                 session_id=data.get("session_id"),
             )
         elif event_type == "text_input":
             event = TextInputEvent(
-                event_type="text_input",
                 input_value=data.get("details", {}).get("value", ""),
                 session_id=data.get("session_id"),
             )
         elif event_type == "toggle_switch":
             event = ToggleSwitchEvent(
-                event_type="toggle_switch",
                 is_enabled=data.get("details", {}).get("checked", False),
                 session_id=data.get("session_id"),
             )

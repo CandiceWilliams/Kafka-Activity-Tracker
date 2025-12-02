@@ -109,7 +109,7 @@ class ActivityProducer:
             self.metrics["messages_failed"] += 1
             return False
 
-    def _on_send_success(self, metadata, event_type):
+    def _on_send_success(self, event_type, metadata):
         """Callback for successful send."""
         self.metrics["messages_sent"] += 1
         logger.debug(
@@ -119,7 +119,7 @@ class ActivityProducer:
             f"offset={metadata.offset}"
         )
 
-    def _on_send_error(self, exception, event_type):
+    def _on_send_error(self, event_type, exception):
         """Callback for failed send."""
         self.metrics["messages_failed"] += 1
         logger.error(f"Failed to send {event_type}: {exception}")
