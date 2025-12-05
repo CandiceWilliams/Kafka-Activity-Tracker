@@ -169,6 +169,23 @@ def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
+@app.get("/metrics")
+def get_metrics():
+    """
+    Get system metrics for monitoring.
+
+    Useful for:
+    - Debugging performance issues
+    - Monitoring system health
+    - Understanding Kafka behavior
+    """
+    producer = get_producer()
+    return {
+        "producer_metrics": producer.get_metrics(),
+        # Could add consumer lag, partition info, etc.
+    }
+
+
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
