@@ -27,13 +27,13 @@
 <script>
     async function updateDashboard() {
         try {
-            const req = await fetch("/activities");
+            const req = await fetch("/analytics");
             const data = await req.json();
             document.getElementById("output").textContent =
                 JSON.stringify(data, null, 2);
         } catch (err) {
             document.getElementById("output").textContent =
-                "Error fetching activities";
+                "Error fetching analytics";
         }
     }
     setInterval(updateDashboard, 1000);
