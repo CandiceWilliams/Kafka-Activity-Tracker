@@ -190,3 +190,34 @@ def get_metrics():
 def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+from app.services.ksqldb_client import get_ksqldb_client
+
+
+@app.get("/ksql/streams")
+def list_streams():
+    """List all ksqlDB streams."""
+    client = get_ksqldb_client()
+    return {"streams": client.list_streams()}
+
+
+@app.get("/ksql/tables")
+def list_tables():
+    """List all ksqlDB tables."""
+    client = get_ksqldb_client()
+    return {"tables": client.list_tables()}
+
+
+@app.get("/ksql/popular-buttons")
+def get_popular_buttons():
+    """Get most clicked buttons from ksqlDB."""
+    client = get_ksqldb_client()
+    return client.get_popular_buttons(limit=10)
+
+
+@app.get("/ksql/activity-summary")
+def get_activity_summary():
+    """Get activity summary from ksqlDB."""
+    client = get_ksqldb_client()
+    return client.get_activity_summary()

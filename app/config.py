@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     LOG_LEVEL: str = "INFO"
 
+    # ksqlDB Configuration
+    KSQLDB_SERVER_URL: str = "http://localhost:8088"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
