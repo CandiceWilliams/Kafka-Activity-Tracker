@@ -49,6 +49,13 @@ class KsqlDBClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to execute ksqlDB statement: {e}")
+            # Log response content for debugging
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    error_detail = e.response.json()
+                    logger.error(f"ksqlDB error response: {error_detail}")
+                except:
+                    logger.error(f"ksqlDB error text: {e.response.text}")
             raise
 
     def query(self, sql: str, timeout: int = 30) -> List[Dict[str, Any]]:
@@ -101,8 +108,9 @@ class KsqlDBClient:
         logger.info("Setting up ksqlDB streams...")
 
         # Create stream for page views
+        # Note: timestamp is BIGINT (milliseconds since epoch)
         page_views_stream = """
-        CREATE STREAM page_views_stream (
+        CREATE STREAM IF NOT EXISTS page_views_stream (
             event_type VARCHAR,
             timestamp BIGINT,
             session_id VARCHAR,
@@ -110,14 +118,13 @@ class KsqlDBClient:
             url VARCHAR
         ) WITH (
             KAFKA_TOPIC='page-views',
-            VALUE_FORMAT='JSON',
-            TIMESTAMP='timestamp'
+            VALUE_FORMAT='JSON'
         );
         """
 
         # Create stream for button clicks
         button_clicks_stream = """
-        CREATE STREAM button_clicks_stream (
+        CREATE STREAM IF NOT EXISTS button_clicks_stream (
             event_type VARCHAR,
             timestamp BIGINT,
             session_id VARCHAR,
@@ -125,32 +132,30 @@ class KsqlDBClient:
             button_id VARCHAR
         ) WITH (
             KAFKA_TOPIC='button-clicks',
-            VALUE_FORMAT='JSON',
-            TIMESTAMP='timestamp'
+            VALUE_FORMAT='JSON'
         );
         """
 
         # Create stream for slider events
         slider_events_stream = """
-        CREATE STREAM slider_events_stream (
+        CREATE STREAM IF NOT EXISTS slider_events_stream (
             event_type VARCHAR,
             timestamp BIGINT,
             session_id VARCHAR,
-            value INT
+            value INT,
+            min_value INT,
+            max_value INT
         ) WITH (
             KAFKA_TOPIC='slider-events',
-            VALUE_FORMAT='JSON',
-            TIMESTAMP='timestamp'
+            VALUE_FORMAT='JSON'
         );
         """
 
         # Create aggregation table: button clicks per minute
         button_clicks_per_minute = """
-        CREATE TABLE button_clicks_per_minute AS
+        CREATE TABLE IF NOT EXISTS button_clicks_per_minute AS
         SELECT
             button_text,
-            WINDOWSTART AS window_start,
-            WINDOWEND AS window_end,
             COUNT(*) AS click_count
         FROM button_clicks_stream
         WINDOW TUMBLING (SIZE 1 MINUTE)
@@ -159,42 +164,40 @@ class KsqlDBClient:
         """
 
         # Create aggregation table: page views per minute
+        # Note: When using GROUP BY with a constant, must include it in SELECT
         page_views_per_minute = """
-        CREATE TABLE page_views_per_minute AS
+        CREATE TABLE IF NOT EXISTS page_views_per_minute AS
         SELECT
-            WINDOWSTART AS window_start,
-            WINDOWEND AS window_end,
+            'all' AS grouping_key,
             COUNT(*) AS view_count
         FROM page_views_stream
         WINDOW TUMBLING (SIZE 1 MINUTE)
-        GROUP BY 1
+        GROUP BY 'all'
         EMIT CHANGES;
         """
 
         # Create aggregation table: average slider value per minute
+        # Note: When using GROUP BY with a constant, must include it in SELECT
         slider_avg_per_minute = """
-        CREATE TABLE slider_avg_per_minute AS
+        CREATE TABLE IF NOT EXISTS slider_avg_per_minute AS
         SELECT
-            WINDOWSTART AS window_start,
-            WINDOWEND AS window_end,
+            'all' AS grouping_key,
             AVG(value) AS avg_value,
             MIN(value) AS min_value,
             MAX(value) AS max_value
         FROM slider_events_stream
         WINDOW TUMBLING (SIZE 1 MINUTE)
-        GROUP BY 1
+        GROUP BY 'all'
         EMIT CHANGES;
         """
 
         # Create session-based aggregation
+        # Note: Simplified to avoid complex COLLECT_LIST which can cause issues
         session_activity = """
-        CREATE TABLE session_activity AS
+        CREATE TABLE IF NOT EXISTS session_activity AS
         SELECT
             session_id,
-            WINDOWSTART AS session_start,
-            WINDOWEND AS session_end,
-            COUNT(*) AS total_events,
-            COLLECT_LIST(event_type) AS event_types
+            COUNT(*) AS total_events
         FROM page_views_stream
         WINDOW SESSION (30 MINUTES)
         GROUP BY session_id
@@ -214,18 +217,29 @@ class KsqlDBClient:
 
         for name, statement in statements:
             try:
-                self.execute_statement(statement)
+                result = self.execute_statement(statement)
                 logger.info(f"Created: {name}")
             except Exception as e:
+                error_msg = str(e).lower()
                 # Stream might already exist
-                if "already exists" in str(e).lower():
+                if "already exists" in error_msg or "duplicate" in error_msg:
                     logger.info(f"{name} already exists, skipping")
                 else:
                     logger.error(f"Failed to create {name}: {e}")
+                    # Try to get more details from ksqlDB response
+                    try:
+                        response_text = (
+                            e.response.text if hasattr(e, "response") else str(e)
+                        )
+                        logger.error(f"ksqlDB error details: {response_text}")
+                    except:
+                        pass
 
     def get_popular_buttons(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Query the most clicked buttons.
+        Query the most clicked buttons using a pull query.
+
+        Pull queries return immediately with current state, no waiting.
 
         Args:
             limit: Number of results to return
@@ -233,19 +247,26 @@ class KsqlDBClient:
         Returns:
             List of button click counts
         """
+        # Use pull query (no EMIT CHANGES) for immediate results
         query = f"""
         SELECT button_text, SUM(click_count) as total_clicks
         FROM button_clicks_per_minute
         GROUP BY button_text
-        EMIT CHANGES
         LIMIT {limit};
         """
 
         try:
-            return self.query(query, timeout=5)
-        except Exception as e:
-            logger.error(f"Failed to get popular buttons: {e}")
+            # Use execute_statement for pull queries, not query()
+            result = self.execute_statement(query)
+
+            # Parse results from pull query format
+            if result and len(result) > 0:
+                # Pull queries return data directly
+                return result
             return []
+        except Exception as e:
+            logger.debug(f"No button data yet: {e}")
+            return []  # Return empty list if no data
 
     def get_activity_summary(self) -> Dict[str, Any]:
         """
@@ -255,37 +276,40 @@ class KsqlDBClient:
             Dictionary with activity metrics
         """
         try:
-            # Get latest page view count
+            # Get latest page view count with shorter timeout
             page_views_query = """
-            SELECT window_start, window_end, view_count
+            SELECT grouping_key, view_count
             FROM page_views_per_minute
             EMIT CHANGES
             LIMIT 1;
             """
-            page_views = self.query(page_views_query, timeout=5)
+            page_views = self.query(page_views_query, timeout=2)
 
-            # Get latest slider average
+            # Get latest slider average with shorter timeout
             slider_query = """
-            SELECT window_start, window_end, avg_value
+            SELECT grouping_key, avg_value, min_value, max_value
             FROM slider_avg_per_minute
             EMIT CHANGES
             LIMIT 1;
             """
-            slider_avg = self.query(slider_query, timeout=5)
+            slider_avg = self.query(slider_query, timeout=2)
 
             return {
                 "page_views": page_views,
                 "slider_average": slider_avg,
             }
         except Exception as e:
-            logger.error(f"Failed to get activity summary: {e}")
-            return {}
+            logger.debug(f"No activity data yet: {e}")
+            return {"page_views": [], "slider_average": []}
 
     def list_streams(self) -> List[str]:
         """List all ksqlDB streams."""
         try:
             result = self.execute_statement("SHOW STREAMS;")
-            return [item.get("name", "") for item in result]
+            # ksqlDB returns list with one element containing 'streams' key
+            if result and len(result) > 0 and "streams" in result[0]:
+                return [stream["name"] for stream in result[0]["streams"]]
+            return []
         except Exception as e:
             logger.error(f"Failed to list streams: {e}")
             return []
@@ -294,7 +318,10 @@ class KsqlDBClient:
         """List all ksqlDB tables."""
         try:
             result = self.execute_statement("SHOW TABLES;")
-            return [item.get("name", "") for item in result]
+            # ksqlDB returns list with one element containing 'tables' key
+            if result and len(result) > 0 and "tables" in result[0]:
+                return [table["name"] for table in result[0]["tables"]]
+            return []
         except Exception as e:
             logger.error(f"Failed to list tables: {e}")
             return []

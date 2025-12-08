@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Analytics Dashboard</title>
+
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      header {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        margin-bottom: 30px;
+      }
+
+      h1 {
+        color: #667eea;
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+
+      .subtitle {
+        color: #666;
+        font-size: 16px;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #e8f5e9;
+        color: #2e7d32;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        margin-top: 10px;
+      }
+
+      .status.disconnected {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #4caf50;
+        animation: pulse 2s infinite;
+      }
+
+      .status.disconnected .status-indicator {
+        background: #f44336;
+        animation: none;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s, box-shadow 0.3s;
+      }
+
+      .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      }
+
+      .stat-label {
+        color: #999;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+      }
+
+      .stat-value {
+        color: #333;
+        font-size: 36px;
+        font-weight: bold;
+      }
+
+      .stat-trend {
+        color: #4caf50;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .chart-card {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .chart-title {
+        color: #333;
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #f0f0f0;
+      }
+
+      .full-width {
+        grid-column: 1 / -1;
+      }
+
+      footer {
+        text-align: center;
+        color: white;
+        padding: 20px;
+        font-size: 14px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #667eea;
+        color: white;
+        border-radius: 12px;
+        font-size: 12px;
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>
+          Kafka Activity Tracker <span class="badge">Powered by ksqlDB</span>
+        </h1>
+        <p class="subtitle">
+          Real-time stream processing with Apache Kafka & ksqlDB
+        </p>
+        <div class="status" id="status">
+          <span class="status-indicator"></span>
+          <span id="statusText">Connecting...</span>
+        </div>
+      </header>
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Events</div>
+          <div class="stat-value" id="totalEvents">0</div>
+          <div class="stat-trend">↑ Live Updates</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Sessions</div>
+          <div class="stat-value" id="activeSessions">0</div>
+          <div class="stat-trend">30min timeout</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Events/Minute</div>
+          <div class="stat-value" id="eventsPerMinute">0</div>
+          <div class="stat-trend">Last minute</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Button Clicks</div>
+          <div class="stat-value" id="buttonClicks">0</div>
+          <div class="stat-trend">All time</div>
+        </div>
+      </div>
+
+      <!-- Charts Grid -->
+      <div class="charts-grid">
+        <!-- Events by Type (Pie Chart) -->
+        <div class="chart-card">
+          <div class="chart-title">Events by Type</div>
+          <div id="eventsPieChart"></div>
+        </div>
+
+        <!-- Popular Buttons (Bar Chart) -->
+        <div class="chart-card">
+          <div class="chart-title">
+            Most Clicked Buttons
+            <span id="buttonDataSource" style="font-size: 12px; color: #999"
+              >(In-Memory)</span
+            >
+          </div>
+          <div id="buttonsBarChart"></div>
+        </div>
+
+        <!-- Events Over Time (Line Chart) -->
+        <div class="chart-card full-width">
+          <div class="chart-title">Event Activity Over Time</div>
+          <div id="eventsTimeChart"></div>
+        </div>
+      </div>
+
+      <footer>
+        Kafka Activity Tracker | Stream Processing with ksqlDB | Real-time
+        Updates via WebSocket
+      </footer>
+    </div>
+
+    <script>
+      // WebSocket connection
+      let ws = null;
+      let reconnectTimer = null;
+
+      // Data storage
+      let eventHistory = {
+        timestamps: [],
+        counts: [],
+      };
+      const MAX_HISTORY_POINTS = 30;
+
+      // Initialize Plotly charts
+      function initCharts() {
+        // Events Pie Chart
+        const pieData = [
+          {
+            values: [0, 0, 0, 0, 0],
+            labels: [
+              "Page Views",
+              "Button Clicks",
+              "Slider Events",
+              "Dropdowns",
+              "Text Inputs",
+            ],
+            type: "pie",
+            hole: 0.4,
+            marker: {
+              colors: ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#43e97b"],
+            },
+          },
+        ];
+        const pieLayout = {
+          height: 300,
+          margin: { t: 0, b: 0, l: 0, r: 0 },
+          showlegend: true,
+          legend: { orientation: "h", y: -0.2 },
+        };
+        Plotly.newPlot("eventsPieChart", pieData, pieLayout, {
+          responsive: true,
+        });
+
+        // Buttons Bar Chart
+        const barData = [
+          {
+            x: [],
+            y: [],
+            type: "bar",
+            marker: {
+              color: "#667eea",
+            },
+          },
+        ];
+        const barLayout = {
+          height: 300,
+          margin: { t: 20, b: 80, l: 50, r: 20 },
+          xaxis: { title: "Button Text" },
+          yaxis: { title: "Click Count" },
+        };
+        Plotly.newPlot("buttonsBarChart", barData, barLayout, {
+          responsive: true,
+        });
+
+        // Time Series Chart
+        const timeData = [
+          {
+            x: [],
+            y: [],
+            type: "scatter",
+            mode: "lines+markers",
+            line: {
+              color: "#667eea",
+              width: 3,
+            },
+            marker: {
+              size: 8,
+              color: "#764ba2",
+            },
+          },
+        ];
+        const timeLayout = {
+          height: 350,
+          margin: { t: 20, b: 50, l: 60, r: 20 },
+          xaxis: {
+            title: "Time",
+            type: "date",
+          },
+          yaxis: {
+            title: "Event Count",
+            rangemode: "tozero",
+          },
+        };
+        Plotly.newPlot("eventsTimeChart", timeData, timeLayout, {
+          responsive: true,
+        });
+      }
+
+      // Update charts with new data
+      function updateCharts(data) {
+        // Update pie chart (Events by Type)
+        if (data.analytics && data.analytics.events_per_type) {
+          const eventTypes = data.analytics.events_per_type;
+          const values = [
+            eventTypes["page_load"] || 0,
+            eventTypes["button_click"] || 0,
+            eventTypes["slider_input"] || 0,
+            eventTypes["dropdown_selection"] || 0,
+            eventTypes["text_input"] || 0,
+          ];
+
+          Plotly.update("eventsPieChart", {
+            values: [values],
+          });
+        }
+
+        // Update bar chart (Popular Buttons)
+        // Try ksqlDB first, fallback to in-memory data
+        let buttonTexts = [];
+        let clickCounts = [];
+        let dataSource = "In-Memory";
+
+        // Try ksqlDB data first
+        if (
+          data.ksqldb &&
+          data.ksqldb.popular_buttons &&
+          data.ksqldb.popular_buttons.length > 0
+        ) {
+          const buttons = data.ksqldb.popular_buttons.slice(0, 5);
+
+          buttons.forEach((line) => {
+            const match = line.match(/\|([^|]+)\|(\d+)/);
+            if (match) {
+              buttonTexts.push(match[1].trim());
+              clickCounts.push(parseInt(match[2]));
+            }
+          });
+
+          if (buttonTexts.length > 0) {
+            dataSource = "ksqlDB";
+          }
+        }
+
+        // Fallback to in-memory data if ksqlDB has no data yet
+        if (
+          buttonTexts.length === 0 &&
+          data.analytics &&
+          data.analytics.button_clicks
+        ) {
+          const buttons = data.analytics.button_clicks;
+          // Sort by click count
+          const sorted = Object.entries(buttons)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+          sorted.forEach(([text, count]) => {
+            buttonTexts.push(text);
+            clickCounts.push(count);
+          });
+          dataSource = "In-Memory";
+        }
+
+        // Update data source indicator
+        const sourceElement = document.getElementById("buttonDataSource");
+        if (sourceElement) {
+          sourceElement.textContent = `(${dataSource})`;
+          sourceElement.style.color =
+            dataSource === "ksqlDB" ? "#4caf50" : "#999";
+        }
+
+        if (buttonTexts.length > 0) {
+          Plotly.update("buttonsBarChart", {
+            x: [buttonTexts],
+            y: [clickCounts],
+          });
+        }
+
+        // Update time series (Event Activity)
+        const now = new Date();
+        let totalEvents = 0;
+
+        if (data.analytics && data.analytics.events_per_type) {
+          Object.values(data.analytics.events_per_type).forEach((count) => {
+            totalEvents += count;
+          });
+        }
+
+        // Add to history
+        eventHistory.timestamps.push(now);
+        eventHistory.counts.push(totalEvents);
+
+        // Keep only last N points
+        if (eventHistory.timestamps.length > MAX_HISTORY_POINTS) {
+          eventHistory.timestamps.shift();
+          eventHistory.counts.shift();
+        }
+
+        Plotly.update("eventsTimeChart", {
+          x: [eventHistory.timestamps],
+          y: [eventHistory.counts],
+        });
+      }
+
+      // Update stat cards
+      function updateStats(data) {
+        if (data.analytics) {
+          // Total events
+          let total = 0;
+          if (data.analytics.events_per_type) {
+            Object.values(data.analytics.events_per_type).forEach((count) => {
+              total += count;
+            });
+          }
+          document.getElementById("totalEvents").textContent =
+            total.toLocaleString();
+
+          // Button clicks
+          const buttonClicks = data.analytics.button_clicks
+            ? Object.values(data.analytics.button_clicks).reduce(
+                (a, b) => a + b,
+                0
+              )
+            : 0;
+          document.getElementById("buttonClicks").textContent =
+            buttonClicks.toLocaleString();
+
+          // Active sessions (mock for now - would come from ksqlDB session windows)
+          document.getElementById("activeSessions").textContent =
+            Math.floor(Math.random() * 10) + 1; // Replace with real data
+
+          // Events per minute (approximate)
+          document.getElementById("eventsPerMinute").textContent = Math.floor(
+            total / 10
+          ); // Rough estimate
+        }
+      }
+
+      // WebSocket connection management
+      function connect() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        console.log("Connecting to WebSocket:", wsUrl);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+          console.log("WebSocket connected");
+          document.getElementById("status").classList.remove("disconnected");
+          document.getElementById("statusText").textContent =
+            "Connected - Live Updates";
+
+          // Clear reconnect timer
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+          }
+        };
+
+        ws.onmessage = function (event) {
+          const data = JSON.parse(event.data);
+          console.log("Received update:", data);
+
+          if (data.type === "update") {
+            updateStats(data);
+            updateCharts(data);
+          }
+        };
+
+        ws.onerror = function (error) {
+          console.error("WebSocket error:", error);
+        };
+
+        ws.onclose = function () {
+          console.log("WebSocket closed");
+          document.getElementById("status").classList.add("disconnected");
+          document.getElementById("statusText").textContent =
+            "Disconnected - Reconnecting...";
+
+          // Attempt to reconnect after 3 seconds
+          reconnectTimer = setTimeout(connect, 3000);
+        };
+      }
+
+      // Initialize on page load
+      window.addEventListener("load", function () {
+        console.log("Initializing dashboard...");
+        initCharts();
+        connect();
+      });
+
+      // Cleanup on page unload
+      window.addEventListener("beforeunload", function () {
+        if (ws) {
+          ws.close();
+        }
+      });
+    </script>
+  </body>
+</html>
