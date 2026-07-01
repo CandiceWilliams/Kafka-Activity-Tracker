@@ -48,3 +48,6 @@ docker-compose.override.yml
 # Temporary files
 *.tmp
 temp/
+
+# Notes
+Notes.md
